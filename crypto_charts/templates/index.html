@@ -17,7 +17,10 @@
     </form>
     <hr>
     {% block stats_chart %}
-    {% if request.method == 'POST' %}
+    {% for message in get_flashed_messages() %}
+        <div class="flash">{{ message }}</div>
+    {% endfor %}
+    {% if request.method == 'POST' and params.data_code == '200000' %}
         <p> Para: {{ params['curr_pair'] }} </p>
         <p> Giełda: {{ params['exchange'] }} </p>
         <div id='chart' class='chart'></div>

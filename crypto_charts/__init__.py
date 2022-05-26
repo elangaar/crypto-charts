@@ -1,4 +1,5 @@
 import os
+import secrets
 
 from flask import Flask
 
@@ -6,6 +7,7 @@ from flask import Flask
 def create_app(test_config=None):
     """Create and configure the app"""
     app = Flask(__name__, instance_relative_config=True)
+    app.secret_key = secrets.token_urlsafe((32))
 
     if test_config is None:
         app.config.from_pyfile('config.py', silent=True)
