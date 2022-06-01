@@ -8,7 +8,7 @@
         <label> Para walutowa: </label>
         <input name="coin1" id="coin1" required>-<input name="coin2" id="coin2">
         <label> Giełda: </label>
-        <select name="exchange">
+        <select name="ex">
             {% for exchange in exchanges_list %}
             <option value="{{ exchange }}">{{ exchange }}</option>
             {% endfor %}
@@ -20,9 +20,9 @@
     {% for message in get_flashed_messages() %}
         <div class="flash">{{ message }}</div>
     {% endfor %}
-    {% if request.method == 'POST' and params.data_code == '200000' %}
-        <p> Para: {{ params['curr_pair'] }} </p>
-        <p> Giełda: {{ params['exchange'] }} </p>
+    {% if request.method == 'POST' and data != None %}
+        <p> Para: {{ data['symbol'] }} </p>
+        <p> Giełda: {{ data['ex'] }} </p>
         <div id='chart' class='chart'></div>
         <script src='https://cdn.plot.ly/plotly-latest.min.js'></script>
         <script type='text/javascript'>

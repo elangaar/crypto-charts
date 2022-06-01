@@ -1,7 +1,7 @@
 """Script for comparing cryptocurrency charts from different sources."""
 
 import json
-from datetime import datetime, timedelta
+import datetime
 
 import pandas as pd
 import plotly.express as px
@@ -11,13 +11,41 @@ import requests
 from flask import (Blueprint, render_template, request, flash)
 
 COINS_LIST_URL = 'https://api.coingecko.com/api/v3/coins/list'
-EXCHANGES_URLS = {
-    'KuCoin': 'https://api.kucoin.com'
+exchanges_urls = {
+    'KuCoin': 'https://api.kucoin.com',
+    'Binance': 'https://api.binance.com'
 }
-KUCOIN_URLS = {
-    'stats_24': '/api/v1/market/stats?symbol=',
-    'klines': '/api/v1/market/candles'
+klines_urls = {
+    'KuCoin': '/api/v1/market/candles',
+    'Binance': '/api/v3/klines'
 }
+ex_pair_separator = {
+    'KuCoin': '-',
+    'Binance': ''
+}
+ex_interval_phrase = {
+    'KuCoin': 'type',
+    'Binance': 'interval'
+}
+ex_time_phrase = {
+    'start': {
+        'KuCoin': 'startAt',
+        'Binance': 'startTime'
+    },
+    'end': {
+        'KuCoin': 'endAt',
+        'Binance': 'endTime'
+    }
+}
+ex_timeframes = {
+    'KuCoin': '1day',
+    'Binance': '1d'
+}
+ex_factor = {
+    'KuCoin': 1,
+    'Binance': 1000
+}
+
 bp = Blueprint('coins', __name__)
 
 
@@ -30,42 +58,68 @@ def get_exchanges_list(ex):
     """Return a list of available exchanges"""
     return [ex for ex in ex.keys()]
 
+def get_symbol(coin1, coin2, ex):
+    """Return currency pair symbol."""
+    return ex_pair_separator[ex].join((coin1.upper(), coin2.upper()))
+
+def get_data_url(coin1, coin2, ex, tf, start_time=datetime.datetime.now()-datetime.timedelta(days=30), end_time=datetime.datetime.now(), symbol=None) :
+    """"Return the URL to an endpoint with data from the exchange."""
+    symbol = get_symbol(coin1, coin2, ex)
+    start_time = str(int(float(datetime.datetime.timestamp(start_time)) * ex_factor[ex]))
+    end_time = str(int(float(datetime.datetime.timestamp(end_time)) * ex_factor[ex]))
+    url_string = exchanges_urls[ex] + klines_urls[ex] + '?symbol=' + symbol + '&' + ex_interval_phrase[ex] + '=' + tf + \
+        '&' + ex_time_phrase['start'][ex] + '=' + start_time + '&' + ex_time_phrase['end'][ex] + '=' + end_time
+    return url_string
+
+def get_kucoin_data(data):
+    """Return statistics data and data chart from kucoin exchange."""
+    if data['code'] == '200000':
+        df = pd.DataFrame({
+            'Czas': [datetime.datetime.fromtimestamp(int(t[0])-1)+datetime.timedelta(days=1) for t in data['data']],
+            'Cena zamknięcia': [float(p[2]) for p in data['data']]
+        })
+        return df
+    return data
+
+def get_binance_data(data):
+    """Return statistics data and data chart from binance exchange."""
+    df = pd.DataFrame({
+        'Czas': [datetime.datetime.fromtimestamp(float(t[6])/1000) for t in data],
+        'Cena zamknięcia': [float(p[4]) for p in data]
+    })
+    return df
+
 @bp.route('/', methods=['GET', 'POST'])
 def get_chart():
     """Return the price chart for a selected pair of cryptocurrencies from selected exchanges."""
     coins_list = get_coins_list(COINS_LIST_URL)
-    exchanges_list = get_exchanges_list(EXCHANGES_URLS)
-    params = None
-    error = None
+    exchanges_list = get_exchanges_list(exchanges_urls)
     if request.method == 'POST':
         params = {
-            'start_time': datetime.now()-timedelta(days=1500),
-            'end_time': datetime.now(),
+            'symbol': get_symbol(request.form['coin1'], request.form['coin2'], request.form['ex']),
             'coin1': request.form['coin1'],
             'coin2': request.form['coin2'],
-            'exchange': request.form['exchange'],
-            'curr_pair': '-'.join((request.form['coin1'].upper(), request.form['coin2'].upper())),
-            'timeframe': ['1min', '3min', '5min', '15min', '30min', '1hour',
-                          '2hour', '4hour', '6hour', '8hour', '12hour', '1day', '1week']
+            'ex': request.form['ex'],
+            'tf': ex_timeframes[request.form['ex']]
         }
-        params['addr'] = EXCHANGES_URLS['KuCoin'] + \
-            KUCOIN_URLS['klines'] + \
-            '?symbol=' + params['curr_pair'] + \
-            '&type=' + params['timeframe'][11] + \
-            '&startAt=' + str(int(datetime.timestamp(params['start_time']))) + \
-            '&endAt=' + str(int(datetime.timestamp(params['end_time'])))
-        r = requests.get(params['addr'])
+        data_url = get_data_url(**params)
+        print(data_url)
+        r = requests.get(data_url)
         data = r.json()
-        params['data_code'] = data['code']
-        if data['code'] == '400100':
-            error = 'Błędny parametr'
-        elif data['code'] == '200000':
-            df = pd.DataFrame({
-                'Czas': [datetime.fromtimestamp(float(t[0])) for t in data['data']],
-                'Cena zamknięcia': [float(p[2]) for p in data['data']]
-            })
-            fig = px.line(df, x='Czas', y='Cena zamknięcia', title=f'{params["curr_pair"]} chart')
+        ex_check = {
+            'KuCoin': get_kucoin_data,
+            'Binance': get_binance_data
+        }
+        ret = ex_check[params['ex']](data)
+        if isinstance(ret, pd.DataFrame):
+            fig = px.line(ret, x='Czas', y='Cena zamknięcia', title=f'{params["symbol"]} chart')
             graph_json = json.dumps(fig, cls=plotly.utils.PlotlyJSONEncoder)
-            return render_template('index.html', params=params, graphJSON=graph_json, exchanges_list=exchanges_list)
+            content_data = {
+                'symbol': params['symbol'],
+                'ex': params['ex']
+            }
+            return render_template('index.html', data=content_data, graphJSON=graph_json, exchanges_list=exchanges_list)
+        else:
+            error = ret
         flash(error)
-    return render_template('index.html', coins_list=coins_list, exchanges_list=exchanges_list, params=params)
+    return render_template('index.html', coins_list=coins_list, exchanges_list=exchanges_list, data=None)
