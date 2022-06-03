@@ -74,20 +74,28 @@ def get_data_url(coin1, coin2, ex, tf, start_time=datetime.datetime.now()-dateti
 def get_kucoin_data(data):
     """Return statistics data and data chart from kucoin exchange."""
     if data['code'] == '200000':
-        df = pd.DataFrame({
-            'Czas': [datetime.datetime.fromtimestamp(int(t[0])-1)+datetime.timedelta(days=1) for t in data['data']],
-            'Cena zamknięcia': [float(p[2]) for p in data['data']]
-        })
-        return df
+        if len(data['data']) > 0:
+            df = pd.DataFrame({
+                'Czas': [datetime.datetime.fromtimestamp(int(t[0])-1)+datetime.timedelta(days=1) for t in data['data']],
+                'Cena zamknięcia': [float(p[2]) for p in data['data']],
+                'Giełda': ['KuCoin' for i in range(len(data['data']))]
+            })
+            return df
+        return 'Brak danych dla tego okresu.'
     return data
 
 def get_binance_data(data):
     """Return statistics data and data chart from binance exchange."""
-    df = pd.DataFrame({
-        'Czas': [datetime.datetime.fromtimestamp(float(t[6])/1000) for t in data],
-        'Cena zamknięcia': [float(p[4]) for p in data]
-    })
-    return df
+    if type(data) == list:
+        if len(data) > 0:
+            df = pd.DataFrame({
+                'Czas': [datetime.datetime.fromtimestamp(float(t[6])/1000) for t in data],
+                'Cena zamknięcia': [float(p[4]) for p in data],
+                'Giełda': ['Binance' for i in range(len(data))]
+            })
+            return df
+        return 'Brak danych dla tego okresu.'
+    return data
 
 @bp.route('/', methods=['GET', 'POST'])
 def get_chart():
