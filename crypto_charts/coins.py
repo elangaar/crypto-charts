@@ -53,25 +53,25 @@ def get_exchanges_list(ex):
 
 def get_symbol(coin1, coin2, ex):
     """Return currency pair symbol."""
-    return ex_pair_separator[ex].join((coin1.upper(), coin2.upper()))
+    return ex_pair_separator.get(ex).join((coin1.upper(), coin2.upper()))
 
 def get_data_url(coin1, coin2, ex, tf, start_time=datetime.datetime.now()-datetime.timedelta(days=90), end_time=datetime.datetime.now(), symbol=None) :
     """"Return the URL to an endpoint with data from the exchange."""
     symbol = get_symbol(coin1, coin2, ex)
-    start_time = str(int(float(datetime.datetime.timestamp(start_time)) * ex_factor[ex]))
-    end_time = str(int(float(datetime.datetime.timestamp(end_time)) * ex_factor[ex]))
-    url_string = f"{exchanges_urls[ex]}{klines_urls[ex]}?symbol={symbol}&{ex_interval_phrase[ex]}={tf}&"\
-            f"{ex_time_phrase['start'][ex]}={start_time}&{ex_time_phrase['end'][ex]}={end_time}"
+    start_time = str(int(float(datetime.datetime.timestamp(start_time)) * ex_factor.get(ex)))
+    end_time = str(int(float(datetime.datetime.timestamp(end_time)) * ex_factor.get(ex)))
+    url_string = f"{exchanges_urls.get(ex)}{klines_urls.get(ex)}?symbol={symbol}&{ex_interval_phrase.get(ex)}={tf}&"\
+            f"{ex_time_phrase.get('start')[ex]}={start_time}&{ex_time_phrase.get('end')[ex]}={end_time}"
     return url_string
 
 def get_kucoin_data(data):
     """Return statistics data and data chart from kucoin exchange."""
-    if data['code'] == '200000':
-        if len(data['data']) > 0:
+    if data.get('code') == '200000':
+        if len(data.get('data')) > 0:
             df = pd.DataFrame({
-                'Czas': [datetime.datetime.fromtimestamp(int(t[0])-1)+datetime.timedelta(days=1) for t in data['data']],
-                'Cena zamknięcia': [float(p[2]) for p in data['data']],
-                'Giełda': ['KuCoin' for i in range(len(data['data']))]
+                'Czas': [datetime.datetime.fromtimestamp(int(t[0])-1)+datetime.timedelta(days=1) for t in data.get('data')],
+                'Cena zamknięcia': [float(p[2]) for p in data.get('data')],
+                'Giełda': ['KuCoin' for i in range(len(data.get('data')))]
             })
             return df
         return 'Brak danych dla tego okresu.'
@@ -114,7 +114,7 @@ def get_chart():
                 'KuCoin': get_kucoin_data,
                 'Binance': get_binance_data
             }
-            ret = ex_check[ex](data)
+            ret = ex_check.get(ex)(data)
             if isinstance(ret, pd.DataFrame):
                 chart_data = pd.concat([chart_data, ret], ignore_index=True)
             else:
