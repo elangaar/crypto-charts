@@ -60,8 +60,8 @@ def get_data_url(coin1, coin2, ex, tf, start_time=datetime.datetime.now()-dateti
     symbol = get_symbol(coin1, coin2, ex)
     start_time = str(int(float(datetime.datetime.timestamp(start_time)) * ex_factor[ex]))
     end_time = str(int(float(datetime.datetime.timestamp(end_time)) * ex_factor[ex]))
-    url_string = exchanges_urls[ex] + klines_urls[ex] + '?symbol=' + symbol + '&' + ex_interval_phrase[ex] + '=' + tf + \
-        '&' + ex_time_phrase['start'][ex] + '=' + start_time + '&' + ex_time_phrase['end'][ex] + '=' + end_time
+    url_string = f"{exchanges_urls[ex]}{klines_urls[ex]}?symbol={symbol}&{ex_interval_phrase[ex]}={tf}&"\
+            f"{ex_time_phrase['start'][ex]}={start_time}&{ex_time_phrase['end'][ex]}={end_time}"
     return url_string
 
 def get_kucoin_data(data):
