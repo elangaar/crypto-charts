@@ -1,5 +1,4 @@
 """Script for comparing cryptocurrency charts from different sources."""
-
 import json
 import datetime
 
@@ -10,7 +9,6 @@ import requests
 
 from flask import (Blueprint, render_template, request, flash)
 
-COINS_LIST_URL = 'https://api.coingecko.com/api/v3/coins/list'
 exchanges_urls = {
     'KuCoin': 'https://api.kucoin.com',
     'Binance': 'https://api.binance.com'
@@ -49,11 +47,6 @@ ex_factor = {
 bp = Blueprint('coins', __name__)
 
 
-def get_coins_list(url):
-    """Return a list of available coins."""
-    r = requests.get(url)
-    return r.json()
-
 def get_exchanges_list(ex):
     """Return a list of available exchanges"""
     return [ex for ex in ex.keys()]
@@ -62,7 +55,7 @@ def get_symbol(coin1, coin2, ex):
     """Return currency pair symbol."""
     return ex_pair_separator[ex].join((coin1.upper(), coin2.upper()))
 
-def get_data_url(coin1, coin2, ex, tf, start_time=datetime.datetime.now()-datetime.timedelta(days=30), end_time=datetime.datetime.now(), symbol=None) :
+def get_data_url(coin1, coin2, ex, tf, start_time=datetime.datetime.now()-datetime.timedelta(days=90), end_time=datetime.datetime.now(), symbol=None) :
     """"Return the URL to an endpoint with data from the exchange."""
     symbol = get_symbol(coin1, coin2, ex)
     start_time = str(int(float(datetime.datetime.timestamp(start_time)) * ex_factor[ex]))
@@ -100,34 +93,38 @@ def get_binance_data(data):
 @bp.route('/', methods=['GET', 'POST'])
 def get_chart():
     """Return the price chart for a selected pair of cryptocurrencies from selected exchanges."""
-    coins_list = get_coins_list(COINS_LIST_URL)
-    exchanges_list = get_exchanges_list(exchanges_urls)
+    content = {'data': None}
+    content['exchanges_list'] = get_exchanges_list(exchanges_urls)
     if request.method == 'POST':
-        params = {
-            'symbol': get_symbol(request.form['coin1'], request.form['coin2'], request.form['ex']),
-            'coin1': request.form['coin1'],
-            'coin2': request.form['coin2'],
-            'ex': request.form['ex'],
-            'tf': ex_timeframes[request.form['ex']]
-        }
-        data_url = get_data_url(**params)
-        print(data_url)
-        r = requests.get(data_url)
-        data = r.json()
-        ex_check = {
-            'KuCoin': get_kucoin_data,
-            'Binance': get_binance_data
-        }
-        ret = ex_check[params['ex']](data)
-        if isinstance(ret, pd.DataFrame):
-            fig = px.line(ret, x='Czas', y='Cena zamknięcia', title=f'{params["symbol"]} chart')
-            graph_json = json.dumps(fig, cls=plotly.utils.PlotlyJSONEncoder)
-            content_data = {
-                'symbol': params['symbol'],
-                'ex': params['ex']
+        chart_data = pd.DataFrame(columns=['Czas', 'Cena zamknięcia', 'Giełda'])
+        exchanges = request.form.getlist('ex')
+        error = ''
+        for ex in exchanges:
+            params = {
+                'symbol': get_symbol(request.form['coin1'], request.form['coin2'], request.form['ex']),
+                'coin1': request.form['coin1'],
+                'coin2': request.form['coin2'],
+                'tf': ex_timeframes[ex]
             }
-            return render_template('index.html', data=content_data, graphJSON=graph_json, exchanges_list=exchanges_list)
-        else:
-            error = ret
+            data_url = get_data_url(**params, ex=ex)
+            print(data_url)
+            r = requests.get(data_url)
+            data = r.json()
+            ex_check = {
+                'KuCoin': get_kucoin_data,
+                'Binance': get_binance_data
+            }
+            ret = ex_check[ex](data)
+            if isinstance(ret, pd.DataFrame):
+                chart_data = pd.concat([chart_data, ret], ignore_index=True)
+            else:
+                error = ret
+        if not chart_data.empty:
+            fig = px.line(chart_data, x='Czas', y='Cena zamknięcia', color='Giełda', title=f'{params["symbol"]} chart')
+            content['graph_json'] = json.dumps(fig, cls=plotly.utils.PlotlyJSONEncoder)
+            content['data'] = {
+                'symbol': params['symbol'],
+                'ex': exchanges
+            }
         flash(error)
-    return render_template('index.html', coins_list=coins_list, exchanges_list=exchanges_list, data=None)
+    return render_template('index.html', **content)
