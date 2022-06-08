@@ -11,37 +11,45 @@ from flask import (Blueprint, render_template, request, flash)
 
 exchanges_urls = {
     'KuCoin': 'https://api.kucoin.com',
-    'Binance': 'https://api.binance.com'
+    'Binance': 'https://api.binance.com',
+    'FTX': 'https://ftx.com/api'
 }
 klines_urls = {
     'KuCoin': '/api/v1/market/candles',
-    'Binance': '/api/v3/klines'
+    'Binance': '/api/v3/klines',
+    'FTX': '/markets/{market_name}/candles'
 }
 ex_pair_separator = {
     'KuCoin': '-',
-    'Binance': ''
+    'Binance': '',
+    'FTX': '/'
 }
 ex_interval_phrase = {
     'KuCoin': 'type',
-    'Binance': 'interval'
+    'Binance': 'interval',
+    'FTX': 'resolution'
 }
 ex_time_phrase = {
     'start': {
         'KuCoin': 'startAt',
-        'Binance': 'startTime'
+        'Binance': 'startTime',
+        'FTX': 'start_time'
     },
     'end': {
         'KuCoin': 'endAt',
-        'Binance': 'endTime'
+        'Binance': 'endTime',
+        'FTX': 'end_time'
     }
 }
 ex_timeframes = {
     'KuCoin': '1day',
-    'Binance': '1d'
+    'Binance': '1d',
+    'FTX': '86400'
 }
 ex_factor = {
     'KuCoin': 1,
-    'Binance': 1000
+    'Binance': 1000,
+    'FTX': 1
 }
 
 bp = Blueprint('coins', __name__)
@@ -55,12 +63,17 @@ def get_symbol(coin1, coin2, ex):
     """Return currency pair symbol."""
     return ex_pair_separator.get(ex).join((coin1.upper(), coin2.upper()))
 
-def get_data_url(coin1, coin2, ex, tf, start_time=datetime.datetime.now()-datetime.timedelta(days=90), end_time=datetime.datetime.now(), symbol=None) :
+def get_market(s, symbol):
+    if '{' in s and '}' in s:
+        return s.format(market_name=symbol) + '?'
+    return f'{s}?symbol={symbol}&'
+
+def get_data_url(coin1, coin2, ex, tf, start_time=datetime.datetime.now()-datetime.timedelta(days=60), end_time=datetime.datetime.now(), symbol=None) :
     """"Return the URL to an endpoint with data from the exchange."""
     symbol = get_symbol(coin1, coin2, ex)
     start_time = str(int(float(datetime.datetime.timestamp(start_time)) * ex_factor.get(ex)))
     end_time = str(int(float(datetime.datetime.timestamp(end_time)) * ex_factor.get(ex)))
-    url_string = f"{exchanges_urls.get(ex)}{klines_urls.get(ex)}?symbol={symbol}&{ex_interval_phrase.get(ex)}={tf}&"\
+    url_string = f"{exchanges_urls.get(ex)}{get_market(klines_urls.get(ex), symbol)}{ex_interval_phrase.get(ex)}={tf}&"\
             f"{ex_time_phrase.get('start')[ex]}={start_time}&{ex_time_phrase.get('end')[ex]}={end_time}"
     return url_string
 
@@ -90,6 +103,19 @@ def get_binance_data(data):
         return 'Brak danych dla tego okresu.'
     return data
 
+def get_ftx_data(data):
+    if data.get('success') is True:
+        if len(data.get('result')) > 0:
+            df = pd.DataFrame({
+                'Czas': [datetime.datetime.strptime(t.get('startTime'), '%Y-%m-%dT%H:%M:%S%z') +
+                         datetime.timedelta(hours=2, seconds=int(ex_timeframes.get('FTX'))) for t in data.get('result')],
+                'Cena zamknięcia': [p.get('close') for p in data.get('result')],
+                'Giełda': ['FTX' for i in range(len(data.get('result')))]
+            })
+            return df
+        return 'Brak danych dla tego okresu.'
+    return data
+
 @bp.route('/', methods=['GET', 'POST'])
 def get_chart():
     """Return the price chart for a selected pair of cryptocurrencies from selected exchanges."""
@@ -112,7 +138,8 @@ def get_chart():
             data = r.json()
             ex_check = {
                 'KuCoin': get_kucoin_data,
-                'Binance': get_binance_data
+                'Binance': get_binance_data,
+                'FTX': get_ftx_data
             }
             ret = ex_check.get(ex)(data)
             if isinstance(ret, pd.DataFrame):
