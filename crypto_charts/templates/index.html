@@ -8,7 +8,7 @@
         <label> Para walutowa: </label>
         <input name="coin1" id="coin1" required>-<input name="coin2" id="coin2">
         <label> Giełda: </label>
-        <select name="ex" size="3" multiple>
+        <select name="exchanges" size="3" multiple>
             {% for exchange in exchanges_list %}
             <option value="{{ exchange }}">{{ exchange }}</option>
             {% endfor %}
@@ -20,17 +20,17 @@
     {% for message in get_flashed_messages() %}
         <div class="flash">{{ message }}</div>
     {% endfor %}
-    {% if request.method == 'POST' and data != None %}
-        <p> Para: {{ data['symbol'] }} </p>
-        <p> Giełda: {% for ex in data['ex'] %}
-            {{ ex }}{% if not loop.last %}, {% else %}
+    {% if request.method == 'POST' and symbol and exchanges %}
+        <p> Para: {{ symbol }} </p>
+        <p> Giełda: {% for exchange in exchanges %}
+            {{ exchange }}{% if not loop.last %}, {% else %}
             {% endif %}
             {% endfor %}
         </p>
         <div id='chart' class='chart'></div>
         <script src='https://cdn.plot.ly/plotly-latest.min.js'></script>
         <script type='text/javascript'>
-            var graphs = {{graph_json | safe}};
+            var graphs = {{ graph_json | safe}};
             Plotly.plot('chart',graphs,{});
         </script>
     {% endif %}
