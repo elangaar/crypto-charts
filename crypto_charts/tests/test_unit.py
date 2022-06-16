@@ -1,4 +1,4 @@
-from coins import get_exchanges_list, get_symbol, get_market
+from coins import get_exchanges_list, get_symbol
 
 
 def test_get_exchanges_list():
@@ -28,18 +28,3 @@ def test_get_symbol():
     assert get_symbol('btc', 'usdt', 'KuCoin') == 'BTC-USDT'
     assert get_symbol('btc', 'usdt', 'Binance') == 'BTCUSDT'
     assert get_symbol('btc', 'usdt', 'FTX') == 'BTC/USDT'
-
-def test_get_market():
-    """
-    GIVEN symbol and market phrase pattern
-    WHEN url string is created
-    THEN get proper market part of the url string depending on exchange
-    """
-    klines_urls = {
-        'KuCoin': '/api/v1/market/candles',
-        'Binance': '/api/v3/klines',
-        'FTX': '/markets/{market_name}/candles'
-    }
-    assert get_market(klines_urls['KuCoin'], 'BTC-USDT') == '/api/v1/market/candles?symbol=BTC-USDT&'
-    assert get_market(klines_urls['Binance'], 'BTCUSDT') == '/api/v3/klines?symbol=BTCUSDT&'
-    assert get_market(klines_urls['FTX'], 'BTC/USDT') == '/markets/BTC/USDT/candles?'
