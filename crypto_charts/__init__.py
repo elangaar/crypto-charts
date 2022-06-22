@@ -19,7 +19,7 @@ def create_app(test_config=None):
     except OSError:
         pass
 
-    from . import coins
+    from crypto_charts import coins
     app.register_blueprint(coins.bp)
     app.add_url_rule('/', endpoint='index')
     return app

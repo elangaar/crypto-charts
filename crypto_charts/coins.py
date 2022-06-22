@@ -40,11 +40,14 @@ def get_exchanges_list(ex):
     """Return a list of available exchanges"""
     return [ex for ex in ex.keys()]
 
+
 def get_symbol(coin1, coin2, ex):
     """Return currency pair symbol."""
     return candles_data_params.get(ex)['separator'].join((coin1.upper(), coin2.upper()))
 
-def get_data_url(ex, coin1, coin2, start_time=datetime.datetime.now()-datetime.timedelta(days=150), end_time=datetime.datetime.now(), **kwargs):
+
+def get_data_url(ex, coin1, coin2, start_time=datetime.datetime.now() - datetime.timedelta(days=150),
+                 end_time=datetime.datetime.now(), **kwargs):
     """Return the URL to an endpoint with historical price data from the exchange for specific pair of coins."""
     symbol = get_symbol(coin1, coin2, ex)
     timeframe = candles_data_params.get(ex)['timeframes'][0]
@@ -53,12 +56,14 @@ def get_data_url(ex, coin1, coin2, start_time=datetime.datetime.now()-datetime.t
     url_string = candles_urls[ex].format(symbol=symbol, timeframe=timeframe, start=start, end=end)
     return url_string
 
+
 def get_kucoin_data(data):
     """Return statistics and data chart from kucoin exchange."""
     if data.get('code') == '200000':
         if len(data.get('data')) > 0:
             df = pd.DataFrame({
-                'Czas': [datetime.datetime.fromtimestamp(int(t[0])-1)+datetime.timedelta(days=1) for t in data.get('data')],
+                'Czas': [datetime.datetime.fromtimestamp(int(t[0]) - 1) + datetime.timedelta(days=1) for t in
+                         data.get('data')],
                 'Cena zamknięcia': [float(p[2]) for p in data.get('data')],
                 'Giełda': ['KuCoin' for i in range(len(data.get('data')))]
             })
@@ -66,12 +71,13 @@ def get_kucoin_data(data):
         return 'Brak danych dla tego okresu.'
     return data
 
+
 def get_binance_data(data):
     """Return statistics and data chart from binance exchange."""
     if type(data) == list:
         if len(data) > 0:
             df = pd.DataFrame({
-                'Czas': [datetime.datetime.fromtimestamp(float(t[6])/1000) for t in data],
+                'Czas': [datetime.datetime.fromtimestamp(float(t[6]) / 1000) for t in data],
                 'Cena zamknięcia': [float(p[4]) for p in data],
                 'Giełda': ['Binance' for i in range(len(data))]
             })
@@ -79,13 +85,15 @@ def get_binance_data(data):
         return 'Brak danych dla tego okresu.'
     return data
 
+
 def get_ftx_data(data):
     """Return statistics and data chart from FTX exchange."""
     if data.get('success') is True:
         if len(data.get('result')) > 0:
             df = pd.DataFrame({
                 'Czas': [datetime.datetime.strptime(t.get('startTime'), '%Y-%m-%dT%H:%M:%S%z') +
-                         datetime.timedelta(hours=2, seconds=int(candles_data_params.get('FTX')['timeframes'][0])) for t in data.get('result')],
+                         datetime.timedelta(hours=2, seconds=int(candles_data_params.get('FTX')['timeframes'][0])) for t
+                         in data.get('result')],
                 'Cena zamknięcia': [p.get('close') for p in data.get('result')],
                 'Giełda': ['FTX' for i in range(len(data.get('result')))]
             })
@@ -93,10 +101,30 @@ def get_ftx_data(data):
         return 'Brak danych dla tego okresu.'
     return data
 
+
 def get_chart(data, symbol):
     """Return a chart string to display on the page by plotly"""
     fig = px.line(data, x='Czas', y='Cena zamknięcia', color='Giełda', title=f'{symbol} chart')
     return json.dumps(fig, cls=plotly.utils.PlotlyJSONEncoder)
+
+
+def get_api_data(url):
+    """Return api data for chosen crypto pair and exchange."""
+    r = requests.get(url)
+    data = r.json()
+    return data
+
+
+def get_prepared_data(data, exchange):
+    """Return prepared data for chosen crypto pair and exchange."""
+    exchange_check = {
+        'KuCoin': get_kucoin_data,
+        'Binance': get_binance_data,
+        'FTX': get_ftx_data
+    }
+    prepared_data = exchange_check.get(exchange)(data)
+    return prepared_data
+
 
 @bp.route('/', methods=['GET', 'POST'])
 def main():
@@ -117,18 +145,12 @@ def main():
                 'tf': candles_data_params[exchange]['timeframes']
             }
             data_url = get_data_url(**params)
-            r = requests.get(data_url)
-            data = r.json()
-            exchange_check = {
-                'KuCoin': get_kucoin_data,
-                'Binance': get_binance_data,
-                'FTX': get_ftx_data
-            }
-            data_prepared = exchange_check.get(exchange)(data)
-            if isinstance(data_prepared, pd.DataFrame):
-                chart_data = pd.concat([chart_data, data_prepared], ignore_index=True)
+            api_data = get_api_data(data_url)
+            prepared_data = get_prepared_data(api_data, exchange)
+            if isinstance(prepared_data, pd.DataFrame):
+                chart_data = pd.concat([chart_data, prepared_data], ignore_index=True)
             else:
-                error = data_prepared
+                error = prepared_data
         if not chart_data.empty:
             content['graph_json'] = get_chart(chart_data, params['symbol'])
             content['symbol'] = params['symbol']
