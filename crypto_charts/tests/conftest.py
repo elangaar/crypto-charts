@@ -12,7 +12,7 @@ def test_client():
             yield testing_client
 
 @pytest.fixture
-def mock_data():
+def sample_data():
     """Fixture return sample of data from exchange."""
     with open('tests/test_data.json') as f:
         return json.load(f)
