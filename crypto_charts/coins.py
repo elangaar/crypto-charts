@@ -46,7 +46,7 @@ def get_symbol(coin1, coin2, ex):
     return candles_data_params.get(ex)['separator'].join((coin1.upper(), coin2.upper()))
 
 
-def get_data_url(ex, coin1, coin2, start_time=datetime.datetime.now() - datetime.timedelta(days=150),
+def get_data_url(ex, coin1, coin2, start_time=datetime.datetime.now() - datetime.timedelta(days=10),
                  end_time=datetime.datetime.now(), **kwargs):
     """Return the URL to an endpoint with historical price data from the exchange for specific pair of coins."""
     symbol = get_symbol(coin1, coin2, ex)
@@ -65,6 +65,7 @@ def get_kucoin_data(data):
                 'Czas': [datetime.datetime.fromtimestamp(int(t[0]) - 1) + datetime.timedelta(days=1) for t in
                          data.get('data')],
                 'Cena zamknięcia': [float(p[2]) for p in data.get('data')],
+                'Wolumen': [float(p[5]) for p in data.get('data')],
                 'Giełda': ['KuCoin' for i in range(len(data.get('data')))]
             })
             return df
@@ -79,6 +80,7 @@ def get_binance_data(data):
             df = pd.DataFrame({
                 'Czas': [datetime.datetime.fromtimestamp(float(t[6]) / 1000) for t in data],
                 'Cena zamknięcia': [float(p[4]) for p in data],
+                'Wolumen': [float(p[5]) for p in data],
                 'Giełda': ['Binance' for i in range(len(data))]
             })
             return df
@@ -101,10 +103,15 @@ def get_ftx_data(data):
         return 'Brak danych dla tego okresu.'
     return data
 
+def get_price_chart(data, symbol):
+    """Return a price chart string to display on the page by plotly"""
+    fig = px.line(data, x='Czas', y='Cena zamknięcia', color='Giełda', title=f'Wykres ceny {symbol}')
+    return json.dumps(fig, cls=plotly.utils.PlotlyJSONEncoder)
 
-def get_chart(data, symbol):
-    """Return a chart string to display on the page by plotly"""
-    fig = px.line(data, x='Czas', y='Cena zamknięcia', color='Giełda', title=f'{symbol} chart')
+
+def get_vol_chart(data, symbol):
+    """Return a volume chart string to display on the page by plotly"""
+    fig = px.bar(data, x='Czas', y='Wolumen', color='Giełda', barmode='group', title=f'Wykres wolumenu {symbol}')
     return json.dumps(fig, cls=plotly.utils.PlotlyJSONEncoder)
 
 
@@ -133,7 +140,7 @@ def main():
         'exchanges_list': get_exchanges_list(candles_data_params)
     }
     if request.method == 'POST':
-        chart_data = pd.DataFrame(columns=['Czas', 'Cena zamknięcia', 'Giełda'])
+        chart_data = pd.DataFrame(columns=['Czas', 'Cena zamknięcia', 'Wolumen', 'Giełda'])
         exchanges = request.form.getlist('exchanges')
         error = ''
         for exchange in exchanges:
@@ -152,8 +159,10 @@ def main():
             else:
                 error = prepared_data
         if not chart_data.empty:
-            content['graph_json'] = get_chart(chart_data, params['symbol'])
+            content['graph_price_json'] = get_price_chart(chart_data, params['symbol'])
+            content['graph_vol_json'] = get_vol_chart(chart_data, params['symbol'])
             content['symbol'] = params['symbol']
             content['exchanges'] = exchanges
+            print('Wolumen: ', chart_data['Wolumen'])
         flash(error)
     return render_template('index.html', **content)

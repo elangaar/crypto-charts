@@ -17,6 +17,7 @@
     </form>
     <hr>
     {% block stats_chart %}
+    <script src='https://cdn.plot.ly/plotly-latest.min.js'></script>
     {% for message in get_flashed_messages() %}
         <div class="flash">{{ message }}</div>
     {% endfor %}
@@ -27,11 +28,15 @@
             {% endif %}
             {% endfor %}
         </p>
-        <div id='chart' class='chart'></div>
-        <script src='https://cdn.plot.ly/plotly-latest.min.js'></script>
+        <div id='price_chart' class='chart'></div>
         <script type='text/javascript'>
-            var graphs = {{ graph_json | safe}};
-            Plotly.plot('chart',graphs,{});
+            var graphs = {{ graph_price_json | safe}};
+            Plotly.plot('price_chart',graphs,{});
+        </script>
+        <div id='vol_chart' class='chart'></div>
+        <script type='text/javascript'>
+            var graphs = {{ graph_vol_json | safe}};
+            Plotly.plot('vol_chart',graphs,{});
         </script>
     {% endif %}
     {% endblock stats_chart %}
