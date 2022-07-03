@@ -97,8 +97,10 @@ def get_ftx_data(data):
                          datetime.timedelta(hours=2, seconds=int(candles_data_params.get('FTX')['timeframes'][0])) for t
                          in data.get('result')],
                 'Cena zamknięcia': [p.get('close') for p in data.get('result')],
+                'Wolumen[USD]': [p.get('volume') for p in data.get('result')],
                 'Giełda': ['FTX' for i in range(len(data.get('result')))]
             })
+            df['Wolumen'] = df['Wolumen[USD]']/df['Cena zamknięcia']
             return df
         return 'Brak danych dla tego okresu.'
     return data
