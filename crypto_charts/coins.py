@@ -33,6 +33,13 @@ candles_urls = {
     'FTX': 'https://ftx.com/api/markets/{symbol}/candles?resolution={timeframe}&start_time={start}&end_time={end}'
 }
 
+stats_urls = {
+    'KuCoin': 'https://api.kucoin.com/api/v1/market/stats?symbol={symbol}',
+    'Binance': 'https://api.binance.com/api/v3/ticker/24hr?symbol={symbol}',
+    #'Binance': 'https://api.binance.com/api/v3/avgPrice?symbol={symbol}',
+    'FTX': 'https://ftx.com/api/markets/{symbol}/candles?resolution={timeframe}&start_time={start}&end_time={end}'
+}
+
 bp = Blueprint('coins', __name__)
 
 
@@ -46,35 +53,47 @@ def get_symbol(coin1, coin2, ex):
     return candles_data_params.get(ex)['separator'].join((coin1.upper(), coin2.upper()))
 
 
-def get_data_url(ex, coin1, coin2, start_time=datetime.datetime.now() - datetime.timedelta(days=10),
+def get_data_urls(ex, coin1, coin2, start_time=datetime.datetime.now() - datetime.timedelta(days=10),
                  end_time=datetime.datetime.now(), **kwargs):
-    """Return the URL to an endpoint with historical price data from the exchange for specific pair of coins."""
+    """Return URLs to an endpoint with historical price data and current statistics from the exchange for specific pair of coins."""
     symbol = get_symbol(coin1, coin2, ex)
     timeframe = candles_data_params.get(ex)['timeframes'][0]
     start = str(int(float(datetime.datetime.timestamp(start_time)) * candles_data_params.get(ex)['factor']))
     end = str(int(float(datetime.datetime.timestamp(end_time)) * candles_data_params.get(ex)['factor']))
-    url_string = candles_urls[ex].format(symbol=symbol, timeframe=timeframe, start=start, end=end)
-    return url_string
+    url_candles = candles_urls[ex].format(symbol=symbol, timeframe=timeframe, start=start, end=end)
+    url_stats = stats_urls[ex].format(symbol=symbol)
+    return url_candles, url_stats
 
 
-def get_kucoin_data(data):
-    """Return statistics and data chart from kucoin exchange."""
-    if data.get('code') == '200000':
-        if len(data.get('data')) > 0:
+def get_kucoin_data(cand_vol_data, stats_data):
+    """Return statistics and data for charts from kucoin exchange."""
+    data = {}
+    if stats_data.get('code') == '200000':
+        data['stats_data'] = {
+            'volume': stats_data['data']['vol'],
+            'average_price': stats_data['data']['averagePrice']
+        }
+    else:
+        data['stats_data'] = stats_data
+    if cand_vol_data.get('code') == '200000':
+        if len(cand_vol_data.get('data')) > 0:
             df = pd.DataFrame({
                 'Czas': [datetime.datetime.fromtimestamp(int(t[0]) - 1) + datetime.timedelta(days=1) for t in
-                         data.get('data')],
-                'Cena zamknięcia': [float(p[2]) for p in data.get('data')],
-                'Wolumen': [float(p[5]) for p in data.get('data')],
-                'Giełda': ['KuCoin' for i in range(len(data.get('data')))]
+                         cand_vol_data.get('data')],
+                'Cena zamknięcia': [float(p[2]) for p in cand_vol_data.get('data')],
+                'Wolumen': [float(p[5]) for p in cand_vol_data.get('data')],
+                'Giełda': ['KuCoin' for i in range(len(cand_vol_data.get('data')))]
             })
-            return df
-        return 'Brak danych dla tego okresu.'
+            data['charts_data'] = df
+        else:
+            data['charts_data'] = 'Brak danych dla tego okresu.'
+    else:
+        data['charts_data'] = cand_vol_data
     return data
 
 
 def get_binance_data(data):
-    """Return statistics and data chart from binance exchange."""
+    """Return statistics and data for charts from binance exchange."""
     if type(data) == list:
         if len(data) > 0:
             df = pd.DataFrame({
@@ -89,7 +108,7 @@ def get_binance_data(data):
 
 
 def get_ftx_data(data):
-    """Return statistics and data chart from FTX exchange."""
+    """Return statistics and data for charts from FTX exchange."""
     if data.get('success') is True:
         if len(data.get('result')) > 0:
             df = pd.DataFrame({
@@ -118,20 +137,20 @@ def get_vol_chart(data, symbol):
 
 
 def get_api_data(url):
-    """Return api data for chosen crypto pair and exchange."""
+    """Return data for chosen crypto pair and exchange."""
     r = requests.get(url)
     data = r.json()
     return data
 
 
-def get_prepared_data(data, exchange):
+def get_prepared_data(cand_vol_data, stats_data, exchange):
     """Return prepared data for chosen crypto pair and exchange."""
     exchange_check = {
         'KuCoin': get_kucoin_data,
         'Binance': get_binance_data,
         'FTX': get_ftx_data
     }
-    prepared_data = exchange_check.get(exchange)(data)
+    prepared_data = exchange_check.get(exchange)(cand_vol_data, stats_data)
     return prepared_data
 
 
@@ -153,18 +172,24 @@ def main():
                 'coin2': request.form['coin2'],
                 'tf': candles_data_params[exchange]['timeframes']
             }
-            data_url = get_data_url(**params)
-            api_data = get_api_data(data_url)
-            prepared_data = get_prepared_data(api_data, exchange)
-            if isinstance(prepared_data, pd.DataFrame):
-                chart_data = pd.concat([chart_data, prepared_data], ignore_index=True)
+            data_urls = get_data_urls(**params)
+            cand_vol_api_data = get_api_data(data_urls[0])
+            stats_api_data = get_api_data(data_urls[1])
+            prepared_data = get_prepared_data(cand_vol_api_data, stats_api_data, exchange)
+
+            if isinstance(prepared_data['stats_data'], dict):
+                prepared_data['stats_data']['exchange'] = exchange
+                content['stats_data'] = prepared_data['stats_data']
             else:
-                error = prepared_data
+                error = prepared_data['stats_data']
+            if isinstance(prepared_data['charts_data'], pd.DataFrame):
+                chart_data = pd.concat([chart_data, prepared_data['charts_data']], ignore_index=True)
+            else:
+                error = prepared_data['charts_data']
         if not chart_data.empty:
             content['graph_price_json'] = get_price_chart(chart_data, params['symbol'])
             content['graph_vol_json'] = get_vol_chart(chart_data, params['symbol'])
             content['symbol'] = params['symbol']
             content['exchanges'] = exchanges
-            print('Wolumen: ', chart_data['Wolumen'])
         flash(error)
     return render_template('index.html', **content)

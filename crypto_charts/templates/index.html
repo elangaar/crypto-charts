@@ -1,6 +1,7 @@
 {% extends 'base.html' %}
 {% block header %}
     {% block title %} {% endblock title %}
+
 {% endblock header %}
 {% block content %}
     <hr>
@@ -16,28 +17,36 @@
         <input type="submit" value="Wyszukaj">
     </form>
     <hr>
-    {% block stats_chart %}
-    <script src='https://cdn.plot.ly/plotly-latest.min.js'></script>
+
     {% for message in get_flashed_messages() %}
         <div class="flash">{{ message }}</div>
     {% endfor %}
     {% if request.method == 'POST' and symbol and exchanges %}
         <p> Para: {{ symbol }} </p>
-        <p> Giełda: {% for exchange in exchanges %}
-            {{ exchange }}{% if not loop.last %}, {% else %}
-            {% endif %}
+        <table>
+            <tr>
+                <th>Giełda</th>
+                <th>Średnia cena</th>
+                <th>Wolumen</th>
+            </tr>
+            {% for exchange in exchanges %}
+                <td> <b> {{ stats_data.exchange }} </b></td>
+                <td> {{ stats_data.average_price }} </td>
+                <td> {{ stats_data.volume }} </td>
             {% endfor %}
-        </p>
-        <div id='price_chart' class='chart'></div>
-        <script type='text/javascript'>
-            var graphs = {{ graph_price_json | safe}};
-            Plotly.plot('price_chart',graphs,{});
-        </script>
-        <div id='vol_chart' class='chart'></div>
-        <script type='text/javascript'>
-            var graphs = {{ graph_vol_json | safe}};
-            Plotly.plot('vol_chart',graphs,{});
-        </script>
+        </table>
+        {% block stats_chart %}
+        <script src='https://cdn.plot.ly/plotly-latest.min.js'></script>
+            <div id='price_chart' class='chart'></div>
+            <script type='text/javascript'>
+                var graphs = {{ graph_price_json | safe}};
+                Plotly.plot('price_chart',graphs,{});
+            </script>
+            <div id='vol_chart' class='chart'></div>
+            <script type='text/javascript'>
+                var graphs = {{ graph_vol_json | safe}};
+                Plotly.plot('vol_chart',graphs,{});
+            </script>
+        {% endblock stats_chart %}
     {% endif %}
-    {% endblock stats_chart %}
 {% endblock content %}
