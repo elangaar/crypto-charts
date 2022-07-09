@@ -36,8 +36,7 @@ candles_urls = {
 stats_urls = {
     'KuCoin': 'https://api.kucoin.com/api/v1/market/stats?symbol={symbol}',
     'Binance': 'https://api.binance.com/api/v3/ticker/24hr?symbol={symbol}',
-    #'Binance': 'https://api.binance.com/api/v3/avgPrice?symbol={symbol}',
-    'FTX': 'https://ftx.com/api/markets/{symbol}/candles?resolution={timeframe}&start_time={start}&end_time={end}'
+    'FTX': 'https://ftx.com/api/markets/{symbol}?type=spot'
 }
 
 bp = Blueprint('coins', __name__)
@@ -71,7 +70,8 @@ def get_kucoin_data(cand_vol_data, stats_data):
     if stats_data.get('code') == '200000':
         data['stats_data'] = {
             'volume': stats_data['data']['vol'],
-            'average_price': stats_data['data']['averagePrice']
+            'last_price': stats_data['data']['last'],
+            'change_price_24': stats_data['data']['changePrice']
         }
     else:
         data['stats_data'] = stats_data
@@ -92,36 +92,60 @@ def get_kucoin_data(cand_vol_data, stats_data):
     return data
 
 
-def get_binance_data(data):
+def get_binance_data(cand_vol_data, stats_data):
     """Return statistics and data for charts from binance exchange."""
-    if type(data) == list:
-        if len(data) > 0:
+    data = {}
+    if stats_data.get('code') is None:
+        data['stats_data'] = {
+            'volume': stats_data['volume'],
+            'last_price': stats_data['lastPrice'],
+            'change_price_24': stats_data['priceChange']
+        }
+    else:
+        data['stats_data'] = stats_data
+    if type(cand_vol_data) == list:
+        if len(cand_vol_data) > 0:
             df = pd.DataFrame({
-                'Czas': [datetime.datetime.fromtimestamp(float(t[6]) / 1000) for t in data],
-                'Cena zamknięcia': [float(p[4]) for p in data],
-                'Wolumen': [float(p[5]) for p in data],
-                'Giełda': ['Binance' for i in range(len(data))]
+                'Czas': [datetime.datetime.fromtimestamp(float(t[6]) / 1000) for t in cand_vol_data],
+                'Cena zamknięcia': [float(p[4]) for p in cand_vol_data],
+                'Wolumen': [float(p[5]) for p in cand_vol_data],
+                'Giełda': ['Binance' for i in range(len(cand_vol_data))]
             })
-            return df
-        return 'Brak danych dla tego okresu.'
+            data['charts_data'] = df
+        else:
+            data['charts_data'] = 'Brak danych dla tego okresu.'
+    else:
+        data['charts_data'] = cand_vol_data
     return data
 
 
-def get_ftx_data(data):
+def get_ftx_data(cand_vol_data, stats_data):
     """Return statistics and data for charts from FTX exchange."""
-    if data.get('success') is True:
-        if len(data.get('result')) > 0:
+    data = {}
+    if stats_data.get('success') is True:
+        data['stats_data'] = {
+            'volume': stats_data['result']['quoteVolume24h']/stats_data['result']['price'],
+            'last_price': stats_data['result']['last'],
+            'change_price_24': stats_data['result']['change24h']*stats_data['result']['last']
+        }
+    else:
+        data['stats_data'] = stats_data
+    if cand_vol_data.get('success') is True:
+        if len(cand_vol_data.get('result')) > 0:
             df = pd.DataFrame({
                 'Czas': [datetime.datetime.strptime(t.get('startTime'), '%Y-%m-%dT%H:%M:%S%z') +
                          datetime.timedelta(hours=2, seconds=int(candles_data_params.get('FTX')['timeframes'][0])) for t
-                         in data.get('result')],
-                'Cena zamknięcia': [p.get('close') for p in data.get('result')],
-                'Wolumen[USD]': [p.get('volume') for p in data.get('result')],
-                'Giełda': ['FTX' for i in range(len(data.get('result')))]
+                         in cand_vol_data.get('result')],
+                'Cena zamknięcia': [p.get('close') for p in cand_vol_data.get('result')],
+                'Wolumen[USD]': [p.get('volume') for p in cand_vol_data.get('result')],
+                'Giełda': ['FTX' for i in range(len(cand_vol_data.get('result')))]
             })
             df['Wolumen'] = df['Wolumen[USD]']/df['Cena zamknięcia']
-            return df
-        return 'Brak danych dla tego okresu.'
+            data['charts_data'] = df
+        else:
+            data['charts_data'] = 'Brak danych dla tego okresu.'
+    else:
+        data['charts_data'] = cand_vol_data
     return data
 
 def get_price_chart(data, symbol):
@@ -158,7 +182,8 @@ def get_prepared_data(cand_vol_data, stats_data, exchange):
 def main():
     """Return the price chart for a selected pair of cryptocurrencies from selected exchanges."""
     content = {
-        'exchanges_list': get_exchanges_list(candles_data_params)
+        'exchanges_list': get_exchanges_list(candles_data_params),
+        'stats_data': {}
     }
     if request.method == 'POST':
         chart_data = pd.DataFrame(columns=['Czas', 'Cena zamknięcia', 'Wolumen', 'Giełda'])
@@ -179,7 +204,7 @@ def main():
 
             if isinstance(prepared_data['stats_data'], dict):
                 prepared_data['stats_data']['exchange'] = exchange
-                content['stats_data'] = prepared_data['stats_data']
+                content['stats_data'][exchange] = prepared_data['stats_data']
             else:
                 error = prepared_data['stats_data']
             if isinstance(prepared_data['charts_data'], pd.DataFrame):
@@ -191,5 +216,6 @@ def main():
             content['graph_vol_json'] = get_vol_chart(chart_data, params['symbol'])
             content['symbol'] = params['symbol']
             content['exchanges'] = exchanges
+            content['quote_currency'] = request.form['coin2'].upper()
         flash(error)
     return render_template('index.html', **content)

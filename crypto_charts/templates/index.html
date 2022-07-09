@@ -26,13 +26,17 @@
         <table>
             <tr>
                 <th>Giełda</th>
-                <th>Średnia cena</th>
+                <th>Aktualna cena [{{ quote_currency }}]</th>
+                <th>Zmiana ceny (24h) [{{ quote_currency }}]</th>
                 <th>Wolumen</th>
             </tr>
-            {% for exchange in exchanges %}
-                <td> <b> {{ stats_data.exchange }} </b></td>
-                <td> {{ stats_data.average_price }} </td>
-                <td> {{ stats_data.volume }} </td>
+            {% for exchange in stats_data.keys() %}
+            <tr>
+                <td> <b> {{ exchange }} </b></td>
+                <td> {{ stats_data[exchange].last_price }} </td>
+                <td> {{ stats_data[exchange].change_price_24 }} </td>
+                <td> {{ stats_data[exchange].volume }} </td>
+            </tr>
             {% endfor %}
         </table>
         {% block stats_chart %}
