@@ -31,7 +31,7 @@
                 <th>Wolumen</th>
             </tr>
             {% for exchange in stats_data.keys() %}
-            <tr>
+            <tr style="color: {{ exchanges_colors[exchange] }}">
                 <td> <b> {{ exchange }} </b></td>
                 <td> {{ stats_data[exchange].last_price }} </td>
                 <td> {{ stats_data[exchange].change_price_24 }} </td>

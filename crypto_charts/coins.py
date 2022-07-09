@@ -39,6 +39,12 @@ stats_urls = {
     'FTX': 'https://ftx.com/api/markets/{symbol}?type=spot'
 }
 
+exchanges_colors = {
+    'KuCoin': 'darkblue',
+    'Binance': 'darkorange',
+    'FTX': 'green'
+}
+
 bp = Blueprint('coins', __name__)
 
 
@@ -150,13 +156,17 @@ def get_ftx_data(cand_vol_data, stats_data):
 
 def get_price_chart(data, symbol):
     """Return a price chart string to display on the page by plotly"""
-    fig = px.line(data, x='Czas', y='Cena zamknięcia', color='Giełda', title=f'Wykres ceny {symbol}')
+    fig = px.line(data, x='Czas', y='Cena zamknięcia', color='Giełda',
+                  color_discrete_map=exchanges_colors,
+                  title=f'Wykres ceny {symbol}')
     return json.dumps(fig, cls=plotly.utils.PlotlyJSONEncoder)
 
 
 def get_vol_chart(data, symbol):
     """Return a volume chart string to display on the page by plotly"""
-    fig = px.bar(data, x='Czas', y='Wolumen', color='Giełda', barmode='group', title=f'Wykres wolumenu {symbol}')
+    fig = px.bar(data, x='Czas', y='Wolumen', color='Giełda', barmode='group',
+                 color_discrete_map=exchanges_colors,
+                 title=f'Wykres wolumenu {symbol}')
     return json.dumps(fig, cls=plotly.utils.PlotlyJSONEncoder)
 
 
@@ -217,5 +227,6 @@ def main():
             content['symbol'] = params['symbol']
             content['exchanges'] = exchanges
             content['quote_currency'] = request.form['coin2'].upper()
+            content['exchanges_colors'] = exchanges_colors
         flash(error)
     return render_template('index.html', **content)
