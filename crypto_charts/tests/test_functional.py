@@ -9,7 +9,6 @@ def test_main_get(test_client):
     """
     response = test_client.get('/')
     assert response.status_code == 200
-    assert b'Para walutowa:' in response.data
 
 
 def test_main_post(test_client):
@@ -18,7 +17,10 @@ def test_main_post(test_client):
     WHEN the '/' page requested by POST
     THEN check response
     """
-    response = test_client.post('/')
+    form_data = {
+        'pair': 'BTC-USDT',
+    }
+    response = test_client.post('/', data=form_data)
     assert response.status_code == 200
 
 

@@ -5,6 +5,7 @@ import datetime
 import pandas as pd
 import plotly.express as px
 import plotly.utils
+import re
 import requests
 
 from flask import (Blueprint, render_template, request, flash)
@@ -53,20 +54,19 @@ def get_exchanges_list(ex):
     return [ex for ex in ex.keys()]
 
 
-def get_symbol(coin1, coin2, ex):
+def get_symbol(base_currency, quoote_currency, ex):
     """Return currency pair symbol."""
-    return candles_data_params.get(ex)['separator'].join((coin1.upper(), coin2.upper()))
+    return candles_data_params.get(ex)['separator'].join((base_currency.upper(), quoote_currency.upper()))
 
 
-def get_data_urls(ex, coin1, coin2, start_time=datetime.datetime.now() - datetime.timedelta(days=10),
-                 end_time=datetime.datetime.now(), **kwargs):
+def get_data_urls(exchange, base_currency, quote_currency, begin_date, end_date, **kwargs):
     """Return URLs to an endpoint with historical price data and current statistics from the exchange for specific pair of coins."""
-    symbol = get_symbol(coin1, coin2, ex)
-    timeframe = candles_data_params.get(ex)['timeframes'][0]
-    start = str(int(float(datetime.datetime.timestamp(start_time)) * candles_data_params.get(ex)['factor']))
-    end = str(int(float(datetime.datetime.timestamp(end_time)) * candles_data_params.get(ex)['factor']))
-    url_candles = candles_urls[ex].format(symbol=symbol, timeframe=timeframe, start=start, end=end)
-    url_stats = stats_urls[ex].format(symbol=symbol)
+    symbol = get_symbol(base_currency, quote_currency, exchange)
+    timeframe = candles_data_params.get(exchange)['timeframes'][0]
+    start = str(int(float(datetime.datetime.timestamp(datetime.datetime.strptime(begin_date, '%Y-%m-%d'))) * candles_data_params.get(exchange)['factor']))
+    end = str(int(float(datetime.datetime.timestamp(datetime.datetime.strptime(end_date, '%Y-%m-%d'))) * candles_data_params.get(exchange)['factor']))
+    url_candles = candles_urls[exchange].format(symbol=symbol, timeframe=timeframe, start=start, end=end)
+    url_stats = stats_urls[exchange].format(symbol=symbol)
     return url_candles, url_stats
 
 
@@ -193,19 +193,26 @@ def main():
     """Return the price chart for a selected pair of cryptocurrencies from selected exchanges."""
     content = {
         'exchanges_list': get_exchanges_list(candles_data_params),
-        'stats_data': {}
+        'stats_data': {},
+        'begin_date': datetime.date.today() - datetime.timedelta(days=10),
+        'end_date': datetime.date.today()
     }
     if request.method == 'POST':
         chart_data = pd.DataFrame(columns=['Czas', 'Cena zamknięcia', 'Wolumen', 'Giełda'])
         exchanges = request.form.getlist('exchanges')
+        pair = re.split("-", request.form['pair'])
+        base_currency = pair[0]
+        quote_currency = pair[1]
         error = ''
         for exchange in exchanges:
             params = {
-                'ex': exchange,
-                'symbol': get_symbol(request.form['coin1'], request.form['coin2'], request.form['exchanges']),
-                'coin1': request.form['coin1'],
-                'coin2': request.form['coin2'],
-                'tf': candles_data_params[exchange]['timeframes']
+                'exchange': exchange,
+                'symbol': get_symbol(base_currency, quote_currency, request.form['exchanges']),
+                'base_currency': base_currency,
+                'quote_currency': quote_currency,
+                'tf': candles_data_params[exchange]['timeframes'],
+                'begin_date': request.form['begin-date'],
+                'end_date': request.form['end-date']
             }
             data_urls = get_data_urls(**params)
             cand_vol_api_data = get_api_data(data_urls[0])
@@ -226,7 +233,7 @@ def main():
             content['graph_vol_json'] = get_vol_chart(chart_data, params['symbol'])
             content['symbol'] = params['symbol']
             content['exchanges'] = exchanges
-            content['quote_currency'] = request.form['coin2'].upper()
+            content['quote_currency'] = quote_currency.upper()
             content['exchanges_colors'] = exchanges_colors
         flash(error)
     return render_template('index.html', **content)

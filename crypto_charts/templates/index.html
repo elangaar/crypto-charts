@@ -6,14 +6,12 @@
 {% block content %}
     <hr>
     <form name="get_coin" action="/" method="POST">
-        <label> Para walutowa: </label>
-        <input name="coin1" id="coin1" required>-<input name="coin2" id="coin2">
-        <label> Giełda: </label>
-        <select name="exchanges" size="3" multiple>
-            {% for exchange in exchanges_list %}
-            <option value="{{ exchange }}">{{ exchange }}</option>
-            {% endfor %}
-        </select>
+        <input name="pair" id="pair" style="text" size=30 pattern="[a-zA-Z0-9]{1,7}-[a-zA-Z0-9]{1,7}" placeholder="Para, np. BTC-USDT" required>
+        {% for exchange in exchanges_list %}
+        <label><input type="checkbox" value="{{ exchange }}" name="exchanges">{{ exchange }}</input></label>
+        {% endfor %}
+        <input type="date" name="begin-date" value="{{ begin_date }}">
+        <input type="date" name="end-date" value="{{ end_date }}">
         <input type="submit" value="Wyszukaj">
     </form>
     <hr>
