@@ -8,10 +8,19 @@
     <form name="get_coin" action="/" method="POST">
         <input name="pair" id="pair" style="text" size=30 pattern="[a-zA-Z0-9]{1,7}-[a-zA-Z0-9]{1,7}" placeholder="Para, np. BTC-USDT" required>
         {% for exchange in exchanges_list %}
-        <label><input type="checkbox" value="{{ exchange }}" name="exchanges">{{ exchange }}</input></label>
+            <label><input type="checkbox" value="{{ exchange }}" name="exchanges">{{ exchange }}</input></label>
         {% endfor %}
         <input type="date" name="begin-date" value="{{ begin_date }}">
         <input type="date" name="end-date" value="{{ end_date }}">
+        <select name="interval">
+            {% for interval in intervals_list %}
+                {% if interval == '1 day' %}
+                    <label><option value="{{ interval }}" selected>{{ interval }}</option></label>
+                {% else %}
+                    <label><option value="{{ interval }}">{{ interval }}</option></label>
+                {% endif %}
+            {% endfor %}
+        </select>
         <input type="submit" value="Wyszukaj">
     </form>
     <hr>

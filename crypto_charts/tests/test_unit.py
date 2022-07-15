@@ -1,20 +1,21 @@
-from coins import get_exchanges_list, get_symbol
+from coins import get_list_from_dict, get_symbol
 
 
 def test_get_exchanges_list():
     """
     GIVEN a dictionary with the names of exchanges as keys
     WHEN a list is created from dictionary keys
-    THEN check type, length and 'KuCoin' value in return value
+    THEN check type, length and 'KuCoin' and 'Binance' value in return value
     """
     exchanges_urls = {
         'KuCoin': 'https://api.kucoin.com',
         'Binance': 'https://api.binance.com'
     }
-    exchanges_list = get_exchanges_list(exchanges_urls)
+    exchanges_list = get_list_from_dict(exchanges_urls)
     assert type(exchanges_list) == list
     assert len(exchanges_list) == 2
     assert 'KuCoin' in exchanges_list
+    assert 'Binance' in exchanges_list
 
 def test_get_symbol():
     """

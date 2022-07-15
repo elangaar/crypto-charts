@@ -10,20 +10,64 @@ import requests
 
 from flask import (Blueprint, render_template, request, flash)
 
+intervals_seconds = {
+    '1 min': 60,
+    '3 min': 180,
+    '5 min': 300,
+    '15 min': 900,
+    '30 min': 1800,
+    '1 hour': 3600,
+    '2 hour': 7200,
+    '4 hour': 14400,
+    '6 hour': 21600,
+    '8 hour': 28800,
+    '12 hour': 43200,
+    '1 day': 86400,
+    '1 week': 7 * 86400,
+    '1 month': 30 * 86400
+}
+
 candles_data_params = {
     'KuCoin': {
         'separator': '-',
-        'timeframes': ['1day'],
+        'timeframes': {'1 min': '1min',
+                       '3 min': '3min',
+                       '5 min': '5min',
+                       '15 min': '15min',
+                       '30 min': '30min',
+                       '1 hour': '1hour',
+                       '2 hour': '2hour',
+                       '4 hour': '4hour',
+                       '6 hour': '6hour',
+                       '8 hour': '8hour',
+                       '12 hour': '12hour',
+                       '1 day': '1day',
+                       '1 week': '1week',
+                       },
         'factor': 1
     },
     'Binance': {
         'separator': '',
-        'timeframes': ['1d'],
+        'timeframes': {'1 min': '1m',
+                       '3 min': '3m',
+                       '5 min': '5m',
+                       '15 min': '15m',
+                       '30 min': '30m',
+                       '1 hour': '1h',
+                       '2 hour': '2h',
+                       '4 hour': '4h',
+                       '6 hour': '6h',
+                       '8 hour': '8h',
+                       '12 hour': '12h',
+                       '1 day': '1d',
+                       '1 week': '1w',
+                       '1 month': '1M'
+                       },
         'factor': 1000
     },
     'FTX': {
         'separator': '/',
-        'timeframes': [86400],
+        'timeframes': intervals_seconds,
         'factor': 1
     }
 }
@@ -49,28 +93,26 @@ exchanges_colors = {
 bp = Blueprint('coins', __name__)
 
 
-def get_exchanges_list(ex):
-    """Return a list of available exchanges"""
-    return [ex for ex in ex.keys()]
-
+def get_list_from_dict(d):
+    """Return a list of keys from dict."""
+    return [k for k in d.keys()]
 
 def get_symbol(base_currency, quoote_currency, ex):
     """Return currency pair symbol."""
     return candles_data_params.get(ex)['separator'].join((base_currency.upper(), quoote_currency.upper()))
 
 
-def get_data_urls(exchange, base_currency, quote_currency, begin_date, end_date, **kwargs):
+def get_data_urls(exchange, base_currency, quote_currency, begin_date, end_date, interval, **kwargs):
     """Return URLs to an endpoint with historical price data and current statistics from the exchange for specific pair of coins."""
     symbol = get_symbol(base_currency, quote_currency, exchange)
-    timeframe = candles_data_params.get(exchange)['timeframes'][0]
     start = str(int(float(datetime.datetime.timestamp(datetime.datetime.strptime(begin_date, '%Y-%m-%d'))) * candles_data_params.get(exchange)['factor']))
     end = str(int(float(datetime.datetime.timestamp(datetime.datetime.strptime(end_date, '%Y-%m-%d'))) * candles_data_params.get(exchange)['factor']))
-    url_candles = candles_urls[exchange].format(symbol=symbol, timeframe=timeframe, start=start, end=end)
+    url_candles = candles_urls[exchange].format(symbol=symbol, timeframe=interval, start=start, end=end)
     url_stats = stats_urls[exchange].format(symbol=symbol)
     return url_candles, url_stats
 
 
-def get_kucoin_data(cand_vol_data, stats_data):
+def get_kucoin_data(cand_vol_data, stats_data, interval):
     """Return statistics and data for charts from kucoin exchange."""
     data = {}
     if stats_data.get('code') == '200000':
@@ -83,9 +125,9 @@ def get_kucoin_data(cand_vol_data, stats_data):
         data['stats_data'] = stats_data
     if cand_vol_data.get('code') == '200000':
         if len(cand_vol_data.get('data')) > 0:
+            time_stamp = pd.Series([datetime.datetime.fromtimestamp(int(t[0]) - 1 + intervals_seconds[interval]) for t in cand_vol_data.get('data')])
             df = pd.DataFrame({
-                'Czas': [datetime.datetime.fromtimestamp(int(t[0]) - 1) + datetime.timedelta(days=1) for t in
-                         cand_vol_data.get('data')],
+                'Czas': pd.to_datetime(time_stamp),
                 'Cena zamknięcia': [float(p[2]) for p in cand_vol_data.get('data')],
                 'Wolumen': [float(p[5]) for p in cand_vol_data.get('data')],
                 'Giełda': ['KuCoin' for i in range(len(cand_vol_data.get('data')))]
@@ -98,7 +140,7 @@ def get_kucoin_data(cand_vol_data, stats_data):
     return data
 
 
-def get_binance_data(cand_vol_data, stats_data):
+def get_binance_data(cand_vol_data, stats_data, interval=None):
     """Return statistics and data for charts from binance exchange."""
     data = {}
     if stats_data.get('code') is None:
@@ -111,8 +153,9 @@ def get_binance_data(cand_vol_data, stats_data):
         data['stats_data'] = stats_data
     if type(cand_vol_data) == list:
         if len(cand_vol_data) > 0:
+            time_stamp = pd.Series([datetime.datetime.fromtimestamp(float(t[6]) / 1000) for t in cand_vol_data])
             df = pd.DataFrame({
-                'Czas': [datetime.datetime.fromtimestamp(float(t[6]) / 1000) for t in cand_vol_data],
+                'Czas': pd.to_datetime(time_stamp).dt.floor('S'),
                 'Cena zamknięcia': [float(p[4]) for p in cand_vol_data],
                 'Wolumen': [float(p[5]) for p in cand_vol_data],
                 'Giełda': ['Binance' for i in range(len(cand_vol_data))]
@@ -125,7 +168,7 @@ def get_binance_data(cand_vol_data, stats_data):
     return data
 
 
-def get_ftx_data(cand_vol_data, stats_data):
+def get_ftx_data(cand_vol_data, stats_data, interval):
     """Return statistics and data for charts from FTX exchange."""
     data = {}
     if stats_data.get('success') is True:
@@ -139,9 +182,8 @@ def get_ftx_data(cand_vol_data, stats_data):
     if cand_vol_data.get('success') is True:
         if len(cand_vol_data.get('result')) > 0:
             df = pd.DataFrame({
-                'Czas': [datetime.datetime.strptime(t.get('startTime'), '%Y-%m-%dT%H:%M:%S%z') +
-                         datetime.timedelta(hours=2, seconds=int(candles_data_params.get('FTX')['timeframes'][0])) for t
-                         in cand_vol_data.get('result')],
+                'Czas': [datetime.datetime.fromtimestamp(datetime.datetime.timestamp(datetime.datetime.strptime(t.get('startTime'), '%Y-%m-%dT%H:%M:%S%z'))
+                         + intervals_seconds[interval] - 1) for t in cand_vol_data.get('result')],
                 'Cena zamknięcia': [p.get('close') for p in cand_vol_data.get('result')],
                 'Wolumen[USD]': [p.get('volume') for p in cand_vol_data.get('result')],
                 'Giełda': ['FTX' for i in range(len(cand_vol_data.get('result')))]
@@ -177,14 +219,14 @@ def get_api_data(url):
     return data
 
 
-def get_prepared_data(cand_vol_data, stats_data, exchange):
+def get_prepared_data(cand_vol_data, stats_data, exchange, interval):
     """Return prepared data for chosen crypto pair and exchange."""
     exchange_check = {
         'KuCoin': get_kucoin_data,
         'Binance': get_binance_data,
         'FTX': get_ftx_data
     }
-    prepared_data = exchange_check.get(exchange)(cand_vol_data, stats_data)
+    prepared_data = exchange_check.get(exchange)(cand_vol_data, stats_data, interval)
     return prepared_data
 
 
@@ -192,7 +234,8 @@ def get_prepared_data(cand_vol_data, stats_data, exchange):
 def main():
     """Return the price chart for a selected pair of cryptocurrencies from selected exchanges."""
     content = {
-        'exchanges_list': get_exchanges_list(candles_data_params),
+        'exchanges_list': get_list_from_dict(candles_data_params),
+        'intervals_list': get_list_from_dict(intervals_seconds),
         'stats_data': {},
         'begin_date': datetime.date.today() - datetime.timedelta(days=10),
         'end_date': datetime.date.today()
@@ -210,14 +253,14 @@ def main():
                 'symbol': get_symbol(base_currency, quote_currency, request.form['exchanges']),
                 'base_currency': base_currency,
                 'quote_currency': quote_currency,
-                'tf': candles_data_params[exchange]['timeframes'],
+                'interval': candles_data_params[exchange]['timeframes'][request.form['interval']],
                 'begin_date': request.form['begin-date'],
                 'end_date': request.form['end-date']
             }
             data_urls = get_data_urls(**params)
             cand_vol_api_data = get_api_data(data_urls[0])
             stats_api_data = get_api_data(data_urls[1])
-            prepared_data = get_prepared_data(cand_vol_api_data, stats_api_data, exchange)
+            prepared_data = get_prepared_data(cand_vol_api_data, stats_api_data, exchange, request.form['interval'])
 
             if isinstance(prepared_data['stats_data'], dict):
                 prepared_data['stats_data']['exchange'] = exchange
