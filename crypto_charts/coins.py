@@ -134,9 +134,9 @@ def get_kucoin_data(cand_vol_data, stats_data, interval):
             })
             data['charts_data'] = df
         else:
-            data['charts_data'] = 'Brak danych dla tego okresu.'
+            data['charts_data'] = 'KuCoin: brak danych dla tego okresu.'
     else:
-        data['charts_data'] = cand_vol_data
+        data['charts_data'] = f'KuCoin: {cand_vol_data.get("msg")}'
     return data
 
 
@@ -162,9 +162,9 @@ def get_binance_data(cand_vol_data, stats_data, interval=None):
             })
             data['charts_data'] = df
         else:
-            data['charts_data'] = 'Brak danych dla tego okresu.'
+            data['charts_data'] = 'Binance: brak danych dla tego okresu.'
     else:
-        data['charts_data'] = cand_vol_data
+        data['charts_data'] = f'Binance: {cand_vol_data.get("msg")}'
     return data
 
 
@@ -191,10 +191,11 @@ def get_ftx_data(cand_vol_data, stats_data, interval):
             df['Wolumen'] = df['Wolumen[USD]']/df['Cena zamknięcia']
             data['charts_data'] = df
         else:
-            data['charts_data'] = 'Brak danych dla tego okresu.'
+            data['charts_data'] = 'FTX: brak danych dla tego okresu.'
     else:
-        data['charts_data'] = cand_vol_data
+        data['charts_data'] = f'FTX: {cand_vol_data.get("error")}'
     return data
+
 
 def get_price_chart(data, symbol):
     """Return a price chart string to display on the page by plotly"""
@@ -248,12 +249,16 @@ def main():
         quote_currency = pair[1]
         error = ''
         for exchange in exchanges:
+            try:
+                interval = candles_data_params[exchange]['timeframes'][request.form.get('interval')]
+            except KeyError:
+                interval = None
             params = {
                 'exchange': exchange,
                 'symbol': get_symbol(base_currency, quote_currency, request.form['exchanges']),
                 'base_currency': base_currency,
                 'quote_currency': quote_currency,
-                'interval': candles_data_params[exchange]['timeframes'][request.form['interval']],
+                'interval': interval,
                 'begin_date': request.form['begin-date'],
                 'end_date': request.form['end-date']
             }
@@ -261,16 +266,17 @@ def main():
             cand_vol_api_data = get_api_data(data_urls[0])
             stats_api_data = get_api_data(data_urls[1])
             prepared_data = get_prepared_data(cand_vol_api_data, stats_api_data, exchange, request.form['interval'])
-
             if isinstance(prepared_data['stats_data'], dict):
                 prepared_data['stats_data']['exchange'] = exchange
                 content['stats_data'][exchange] = prepared_data['stats_data']
             else:
                 error = prepared_data['stats_data']
+                flash(error)
             if isinstance(prepared_data['charts_data'], pd.DataFrame):
                 chart_data = pd.concat([chart_data, prepared_data['charts_data']], ignore_index=True)
             else:
                 error = prepared_data['charts_data']
+                flash(error)
         if not chart_data.empty:
             content['graph_price_json'] = get_price_chart(chart_data, params['symbol'])
             content['graph_vol_json'] = get_vol_chart(chart_data, params['symbol'])
@@ -278,5 +284,4 @@ def main():
             content['exchanges'] = exchanges
             content['quote_currency'] = quote_currency.upper()
             content['exchanges_colors'] = exchanges_colors
-        flash(error)
     return render_template('index.html', **content)

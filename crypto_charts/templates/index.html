@@ -26,7 +26,7 @@
     <hr>
 
     {% for message in get_flashed_messages() %}
-        <div class="flash">{{ message }}</div>
+        <div class="flash" style="color: red;">{{ message }}</div>
     {% endfor %}
     {% if request.method == 'POST' and symbol and exchanges %}
         <p> Para: {{ symbol }} </p>
