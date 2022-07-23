@@ -1,14 +1,19 @@
 """Script for comparing cryptocurrency charts from different sources."""
 
-import json
+import base64
 import datetime
+import json
+import re
+
+from flask import (Blueprint, render_template, render_template_string, request, flash, redirect, url_for)
+
 import pandas as pd
 import plotly.express as px
+import plotly.io
 import plotly.utils
-import re
 import requests
 
-from flask import (Blueprint, render_template, request, flash)
+from xhtml2pdf import pisa
 
 intervals_seconds = {
     '1 min': 60,
@@ -202,7 +207,8 @@ def get_price_chart(data, symbol):
     fig = px.line(data, x='Czas', y='Cena zamknięcia', color='Giełda',
                   color_discrete_map=exchanges_colors,
                   title=f'Wykres ceny {symbol}')
-    return json.dumps(fig, cls=plotly.utils.PlotlyJSONEncoder)
+    ret = json.dumps(fig, cls=plotly.utils.PlotlyJSONEncoder)
+    return ret
 
 
 def get_vol_chart(data, symbol):
@@ -231,6 +237,52 @@ def get_prepared_data(cand_vol_data, stats_data, exchange, interval):
     return prepared_data
 
 
+def figure_to_base64(figures):
+    images_html = ""
+    for figure in figures:
+        figure = plotly.io.from_json(figure)
+        image = str(base64.b64encode(figure.to_image(format="png", scale=2)))[2:-1]
+        images_html += (f'<img src="data:image/png;base64,{image}"><br>')
+    return images_html
+
+
+def create_html_report(template_file, images_html, content):
+    with open(template_file, 'r') as f:
+        html_template_string = f.read()
+    html_template_string = html_template_string.replace('{{ charts_images }}', images_html)
+    stats_data = json.loads(content['stats_data'].replace("'", '"'))
+    content ={
+        'symbol': content['symbol'],
+        'quote_currency': content['quote_currency'],
+        'stats_data': stats_data,
+        'exchanges_colors': content['exchanges_colors']
+    }
+    rendered_template = render_template_string(html_template_string, **content)
+    return rendered_template
+
+
+def convert_html_to_pdf(source_html, output_filename):
+    with open(f"{output_filename}", "w+b") as f:
+        pisa_status = pisa.CreatePDF(source_html, dest=f)
+
+
+@bp.route('/get_pdf')
+def get_pdf():
+    content = request.args
+    graph_price_json = content['graph_price_json']
+    graph_vol_json = content['graph_vol_json']
+    figures = [
+        graph_price_json,
+        graph_vol_json
+    ]
+    images_html = figure_to_base64(figures)
+    report_html = create_html_report('crypto_charts/templates/index_to_pdf.html', images_html, content)
+    report_name = f'report_{datetime.datetime.strftime(datetime.datetime.now(), "%Y%m%d%H%M%S")}_{content["symbol"]}.pdf'
+    report_name = report_name.replace('/', '-')
+    convert_html_to_pdf(report_html, report_name)
+    return redirect(url_for('.main', messages= ['Zapisano raport pdf.']))
+
+
 @bp.route('/', methods=['GET', 'POST'])
 def main():
     """Return the price chart for a selected pair of cryptocurrencies from selected exchanges."""
@@ -241,6 +293,7 @@ def main():
         'begin_date': datetime.date.today() - datetime.timedelta(days=10),
         'end_date': datetime.date.today()
     }
+    msgs = [request.args.get('messages')] if request.args.get('messages') else list()
     if request.method == 'POST':
         chart_data = pd.DataFrame(columns=['Czas', 'Cena zamknięcia', 'Wolumen', 'Giełda'])
         exchanges = request.form.getlist('exchanges')
@@ -284,4 +337,6 @@ def main():
             content['exchanges'] = exchanges
             content['quote_currency'] = quote_currency.upper()
             content['exchanges_colors'] = exchanges_colors
+            content['content'] = content
+    content['messages'] = msgs
     return render_template('index.html', **content)

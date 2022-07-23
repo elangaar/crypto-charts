@@ -6,6 +6,7 @@ html { font-family: sans-serif; padding: 1rem; }
 table {
   border-collapse: collapse;
   width: 100%;
+  text-align: left;
 }
 th, td {
   padding: 8px;

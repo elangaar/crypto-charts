@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+<nav>
+
+</nav>
+<section class="content">
+    <header>
+    </header>
+    <p> Para: {{ symbol }} </p>
+    <table width="100%">
+        <tr>
+            <th width="25%">Giełda</th>
+            <th width="25%">Aktualna cena [{{ quote_currency }}]</th>
+            <th width="25%">Zmiana ceny (24h) [{{ quote_currency }}]</th>
+            <th width="25%">Wolumen</th>
+        </tr>
+        {% for exchange in stats_data.keys() %}
+            <tr style="color: {{ exchanges_colors[exchange] }}">
+                <td width="25%"> <b> {{ exchange }} </b></td>
+                <td width="25%"> {{ stats_data[exchange].last_price }} </td>
+                <td width="25%"> {{ stats_data[exchange].change_price_24 }} </td>
+                <td width="25%"> {{ stats_data[exchange].volume }} </td>
+            </tr>
+        {% endfor %}
+    </table>
+    <div>
+        {{ charts_images }}
+    </div>
+</section>
+</body>
+</html>

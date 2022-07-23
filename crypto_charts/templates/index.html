@@ -24,7 +24,9 @@
         <input type="submit" value="Wyszukaj">
     </form>
     <hr>
-
+    {% for message in messages %}
+        <div style="color: green;">{{ message }}</div>
+    {% endfor %}
     {% for message in get_flashed_messages() %}
         <div class="flash" style="color: red;">{{ message }}</div>
     {% endfor %}
@@ -58,6 +60,7 @@
                 var graphs = {{ graph_vol_json | safe}};
                 Plotly.plot('vol_chart',graphs,{});
             </script>
+            <a href="{{ url_for('coins.get_pdf', **content) }}">Zapisz jako PDF</a>
         {% endblock stats_chart %}
     {% endif %}
 {% endblock content %}
