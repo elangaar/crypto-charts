@@ -2,7 +2,36 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <style type="text/css">
+        html {
+            font-family: sans-serif;
+            padding: 1rem;
+        }
+        table {
+            border-collapse: collapse;
+            width: 100%;
+            text-align: center;
+        }
+        th, td {
+            text-align: center;
+        }
+        @page {
+            size: a4 portrait;
+            @frame header_frame {
+                -pdf-frame-content: header_content;
+                left: 50pt; width: 512pt; top: 50pt; height: 25pt;
+                font-size: 1.3em;
+            }
+            @frame table_frame {
+                -pdf-frame-content: table_content;
+                left: 50pt; width: 512pt; top: 75pt; height: 60pt;
+            }
+            @frame content_frame {
+                -pdf-frame-content: charts_content;
+                left: 50pt; width: 512pt; top: 125pt; height: 600pt;
+            }
+        }
+    </style>
 </head>
 <body>
 <nav>
@@ -10,25 +39,27 @@
 </nav>
 <section class="content">
     <header>
-    </header>
-    <p> Para: {{ symbol }} </p>
-    <table width="100%">
-        <tr>
-            <th width="25%">Giełda</th>
-            <th width="25%">Aktualna cena [{{ quote_currency }}]</th>
-            <th width="25%">Zmiana ceny (24h) [{{ quote_currency }}]</th>
-            <th width="25%">Wolumen</th>
-        </tr>
-        {% for exchange in stats_data.keys() %}
-            <tr style="color: {{ exchanges_colors[exchange] }}">
-                <td width="25%"> <b> {{ exchange }} </b></td>
-                <td width="25%"> {{ stats_data[exchange].last_price }} </td>
-                <td width="25%"> {{ stats_data[exchange].change_price_24 }} </td>
-                <td width="25%"> {{ stats_data[exchange].volume }} </td>
+    </heade>
+    <div id="header_content"><b>{{ symbol }}</b> ({{ date_time }}) </div>
+    <div id="table_content">
+        <table>
+            <tr>
+                <th>Giełda</th>
+                <th>Aktualna cena [{{ quote_currency }}]</th>
+                <th>Zmiana ceny (24h) [{{ quote_currency }}]</th>
+                <th>Wolumen</th>
             </tr>
-        {% endfor %}
-    </table>
-    <div>
+            {% for exchange in stats_data.keys() %}
+            <tr style="color: {{ exchanges_colors[exchange] }}">
+                <td> {{ exchange }}</td>
+                <td> {{ stats_data[exchange].last_price }} </td>
+                <td> {{ stats_data[exchange].change_price_24 }} </td>
+                <td> {{ stats_data[exchange].volume }} </td>
+            </tr>
+            {% endfor %}
+        </table>
+    </div>
+    <div id="charts_content">
         {{ charts_images }}
     </div>
 </section>

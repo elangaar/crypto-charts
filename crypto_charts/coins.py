@@ -241,7 +241,7 @@ def figure_to_base64(figures):
     images_html = ""
     for figure in figures:
         figure = plotly.io.from_json(figure)
-        image = str(base64.b64encode(figure.to_image(format="png", scale=2)))[2:-1]
+        image = str(base64.b64encode(figure.to_image(format="png", scale=2, width=1000)))
         images_html += (f'<img src="data:image/png;base64,{image}"><br>')
     return images_html
 
@@ -255,7 +255,8 @@ def create_html_report(template_file, images_html, content):
         'symbol': content['symbol'],
         'quote_currency': content['quote_currency'],
         'stats_data': stats_data,
-        'exchanges_colors': content['exchanges_colors']
+        'exchanges_colors': json.loads(content['exchanges_colors'].replace("'", '"')),
+        'date_time': datetime.datetime.strftime(datetime.datetime.now(), '%Y-%m-%d %H:%M:%S')
     }
     rendered_template = render_template_string(html_template_string, **content)
     return rendered_template

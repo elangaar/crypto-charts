@@ -6,10 +6,10 @@ html { font-family: sans-serif; padding: 1rem; }
 table {
   border-collapse: collapse;
   width: 100%;
-  text-align: left;
+  text-align: center;
 }
 th, td {
   padding: 8px;
-  text-align: left;
+  text-align: center;
   border-bottom: 1px solid #DDD;
 }
