@@ -5,7 +5,7 @@ import datetime
 import json
 import re
 
-from flask import (Blueprint, render_template, render_template_string, request, flash, redirect, url_for)
+from flask import (Blueprint, render_template, render_template_string, request, flash, redirect, url_for, session)
 
 import pandas as pd
 import plotly.express as px
@@ -270,8 +270,8 @@ def convert_html_to_pdf(source_html, output_filename):
 @bp.route('/get_pdf')
 def get_pdf():
     content = request.args
-    graph_price_json = content['graph_price_json']
-    graph_vol_json = content['graph_vol_json']
+    graph_price_json = session.get('graph_price_json')
+    graph_vol_json = session.get('graph_vol_json')
     figures = [
         graph_price_json,
         graph_vol_json
@@ -281,7 +281,8 @@ def get_pdf():
     report_name = f'report_{datetime.datetime.strftime(datetime.datetime.now(), "%Y%m%d%H%M%S")}_{content["symbol"]}.pdf'
     report_name = report_name.replace('/', '-')
     convert_html_to_pdf(report_html, report_name)
-    return redirect(url_for('.main', messages= ['Zapisano raport pdf.']))
+    flash('Zapisano raport pdf', 'msg')
+    return redirect(url_for('.main'))
 
 
 @bp.route('/', methods=['GET', 'POST'])
@@ -294,8 +295,7 @@ def main():
         'begin_date': datetime.date.today() - datetime.timedelta(days=10),
         'end_date': datetime.date.today()
     }
-    msgs = [request.args.get('messages')] if request.args.get('messages') else list()
-    if request.method == 'POST':
+    if request.method == 'POST' and 'get-coin-submit' in request.form:
         chart_data = pd.DataFrame(columns=['Czas', 'Cena zamknięcia', 'Wolumen', 'Giełda'])
         exchanges = request.form.getlist('exchanges')
         pair = re.split("-", request.form['pair'])
@@ -325,19 +325,18 @@ def main():
                 content['stats_data'][exchange] = prepared_data['stats_data']
             else:
                 error = prepared_data['stats_data']
-                flash(error)
+                flash(error, 'error')
             if isinstance(prepared_data['charts_data'], pd.DataFrame):
                 chart_data = pd.concat([chart_data, prepared_data['charts_data']], ignore_index=True)
             else:
                 error = prepared_data['charts_data']
-                flash(error)
+                flash(error, 'error')
         if not chart_data.empty:
-            content['graph_price_json'] = get_price_chart(chart_data, params['symbol'])
-            content['graph_vol_json'] = get_vol_chart(chart_data, params['symbol'])
+            session['graph_price_json'] = get_price_chart(chart_data, params['symbol'])
+            session['graph_vol_json'] = get_vol_chart(chart_data, params['symbol'])
             content['symbol'] = params['symbol']
             content['exchanges'] = exchanges
             content['quote_currency'] = quote_currency.upper()
             content['exchanges_colors'] = exchanges_colors
             content['content'] = content
-    content['messages'] = msgs
     return render_template('index.html', **content)

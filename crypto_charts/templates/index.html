@@ -5,7 +5,7 @@
 {% endblock header %}
 {% block content %}
     <hr>
-    <form name="get_coin" action="/" method="POST">
+    <form id="get-coin" name="get_coin" action="/" method="POST">
         <input name="pair" id="pair" style="text" size=30 pattern="[a-zA-Z0-9]{1,7}-[a-zA-Z0-9]{1,7}" placeholder="Para, np. BTC-USDT" required>
         {% for exchange in exchanges_list %}
             <label><input type="checkbox" value="{{ exchange }}" name="exchanges">{{ exchange }}</input></label>
@@ -21,14 +21,16 @@
                 {% endif %}
             {% endfor %}
         </select>
-        <input type="submit" value="Wyszukaj">
+        <input type="submit" id="get-coin-submit" name="get-coin-submit" value="Wyszukaj">
     </form>
     <hr>
-    {% for message in messages %}
-        <div style="color: green;">{{ message }}</div>
-    {% endfor %}
-    {% for message in get_flashed_messages() %}
-        <div class="flash" style="color: red;">{{ message }}</div>
+    {% for category, message in get_flashed_messages(with_categories=true) %}
+        {% if category == 'error' %}
+            <div class="flash" style="color: red;">{{ message }}</div>
+        {% endif %}
+        {% if category == 'msg' %}
+            <div class="flash" style="color: green;">{{ message }}</div>
+        {% endif %}
     {% endfor %}
     {% if request.method == 'POST' and symbol and exchanges %}
         <p> Para: {{ symbol }} </p>
@@ -52,12 +54,12 @@
         <script src='https://cdn.plot.ly/plotly-latest.min.js'></script>
             <div id='price_chart' class='chart'></div>
             <script type='text/javascript'>
-                var graphs = {{ graph_price_json | safe}};
+                var graphs = {{ session.graph_price_json | safe}};
                 Plotly.plot('price_chart',graphs,{});
             </script>
             <div id='vol_chart' class='chart'></div>
             <script type='text/javascript'>
-                var graphs = {{ graph_vol_json | safe}};
+                var graphs = {{ session.graph_vol_json | safe}};
                 Plotly.plot('vol_chart',graphs,{});
             </script>
             <a href="{{ url_for('coins.get_pdf', **content) }}">Zapisz jako PDF</a>
